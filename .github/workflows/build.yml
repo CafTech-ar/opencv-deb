@@ -1,0 +1,86 @@
+name: Build OpenCV for x64 and ARM
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        arch: [x64, arm64]
+    runs-on: ubuntu-latest
+
+    env:
+      OPENCV_VERSION: "4.11.0"
+      GOCV_VERSION: "v0.40.0"
+      TMP_DIR: "/tmp/"
+      BUILD_SHARED_LIBS: "ON"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip wget build-essential cmake curl git \
+          libgtk2.0-dev pkg-config libavcodec-dev libavformat-dev libswscale-dev \
+          libtbb-dev libjpeg-dev libpng-dev libtiff-dev libdc1394-dev \
+          libharfbuzz-dev libfreetype-dev
+
+      - name: Download OpenCV
+        run: |
+          mkdir -p $TMP_DIR/opencv
+          cd $TMP_DIR/opencv
+          curl -Lo opencv.zip https://github.com/opencv/opencv/archive/refs/tags/$OPENCV_VERSION.zip
+          unzip -q opencv.zip
+          curl -Lo opencv_contrib.zip https://github.com/opencv/opencv_contrib/archive/refs/tags/$OPENCV_VERSION.zip
+          unzip -q opencv_contrib.zip
+
+      - name: Configure and Build OpenCV (${{ matrix.arch }})
+        run: |
+          cd $TMP_DIR/opencv/opencv-$OPENCV_VERSION
+          mkdir build && cd build
+
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            CMAKE_FLAGS=" -D ENABLE_NEON=ON -D WITH_FREETYPE=ON "
+          else
+            CMAKE_FLAGS=""
+          fi
+
+          cmake $CMAKE_FLAGS \
+            -D CMAKE_BUILD_TYPE=RELEASE \
+            -D CMAKE_INSTALL_PREFIX=/usr/local \
+            -D BUILD_SHARED_LIBS=$BUILD_SHARED_LIBS \
+            -D OPENCV_EXTRA_MODULES_PATH=$TMP_DIR/opencv/opencv_contrib-$OPENCV_VERSION/modules \
+            -D BUILD_DOCS=OFF \
+            -D BUILD_EXAMPLES=OFF \
+            -D BUILD_TESTS=OFF \
+            -D BUILD_PERF_TESTS=ON \
+            -D BUILD_opencv_java=NO \
+            -D BUILD_opencv_python=NO \
+            -D BUILD_opencv_python2=NO \
+            -D BUILD_opencv_python3=NO \
+            -D WITH_JASPER=OFF \
+            -D WITH_TBB=ON \
+            -D OPENCV_GENERATE_PKGCONFIG=ON \
+            -D OPENCV_ENABLE_NONFREE=ON \
+            -D WITH_GSTREAMER=ON \
+            -D BUILD_opencv_apps=ON \
+            -D CPACK_BINARY_DEB=ON \
+            -D CPACK_GENERATOR=DEB \
+            -D OPENCV_VCSVERSION=$OPENCV_VERSION ..
+
+          make -j$(nproc)
+          make preinstall
+          make install
+          cpack -G DEB
+
+      - name: Upload OpenCV .deb package as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencv-${{ matrix.arch }}
+          path: /tmp/opencv/opencv-${{ env.OPENCV_VERSION }}/build/OpenCV*.deb
