@@ -26,11 +26,7 @@ jobs:
       - name: Set up dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y unzip wget build-essential cmake curl git \
-          libgtk2.0-dev pkg-config libavcodec-dev libavformat-dev libswscale-dev \
-          libtbb-dev libjpeg-dev libpng-dev libtiff-dev libdc1394-dev \
-          libharfbuzz-dev libfreetype-dev
-
+          sudo apt-get install -y  unzip wget build-essential cmake curl git libgtk2.0-dev pkg-config libavcodec-dev libavformat-dev libswscale-dev libtbb-dev libjpeg-dev libpng-dev libtiff-dev libdc1394-dev libharfbuzz-dev libfreetype-dev
       - name: Download OpenCV
         run: |
           mkdir -p $TMP_DIR/opencv
@@ -77,6 +73,7 @@ jobs:
           make -j$(nproc)
           make preinstall
           make install
+          cd $TMP_DIR/opencv/opencv-$OPENCV_VERSION/build
           cpack -G DEB
 
       - name: Upload OpenCV .deb package as artifact
